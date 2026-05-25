@@ -309,8 +309,8 @@ def save_outcome(wo, row):
 # ══════════════════════════════════════════════════════════════════════════════
 st.title("🦵 ACLR术后重返运动预测器" if zh else "🦵 ACLR Return to Sport Predictor")
 st.caption(
-    "基于文献多因素逻辑回归系数 | AUC≈0.80 | v3.0 · 优复门诊运动医学" if zh else
-    "Literature-based multivariate logistic regression | AUC≈0.80 | v3.0 · UP Clinic Sports Medicine")
+    "基于文献多因素逻辑回归系数 | AUC≈0.80 | v3.0 · 张瑞华医生 设计" if zh else
+    "Literature-based multivariate logistic regression | AUC≈0.80 | v3.0 · Designed by Dr.Jason Zhang")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Tab布局

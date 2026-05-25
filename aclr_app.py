@@ -656,22 +656,75 @@ with tab1:
     )
 
     curve = rts_curve_by_time(aclrsi_val, hop_lsi_val, quad_lsi_val, age_val)
-    curve_df = pd.DataFrame({
-        ("术后月数" if zh else "Months Post-op"): list(curve.keys()),
-        ("RTS概率(%)" if zh else "RTS Probability(%)"): list(curve.values())
-    })
 
-    # 用plotly-style的st.line_chart展示
-    chart_data = pd.DataFrame(
-        {"RTS概率(%)": list(curve.values())},
-        index=[f"{t}mo" for t in curve.keys()]
+    # 用plotly构建图表，确保横轴按数字顺序排列
+    import plotly.graph_objects as go
+
+    time_points = list(curve.keys())   # [6, 9, 12, 18, 24, 36, 48]
+    prob_values = list(curve.values())
+    x_labels    = [f"{t}个月" if zh else f"{t}mo" for t in time_points]
+
+    fig = go.Figure()
+
+    # 主曲线
+    fig.add_trace(go.Scatter(
+        x=time_points,
+        y=prob_values,
+        mode="lines+markers",
+        line=dict(color="#2E86AB", width=2.5),
+        marker=dict(size=7, color="#2E86AB"),
+        hovertemplate=(
+            "术后 %{x} 个月<br>参考RTS概率：%{y:.1f}%<extra></extra>" if zh else
+            "%{x} months post-op<br>Reference RTS probability: %{y:.1f}%<extra></extra>"
+        ),
+        name="RTS概率" if zh else "RTS Probability"
+    ))
+
+    # 当前评估时间点垂直标注线
+    if months_post_op is not None and 6 <= months_post_op <= 48:
+        closest_t = min(time_points, key=lambda x: abs(x - months_post_op))
+        ref_prob  = curve[closest_t]
+        fig.add_vline(
+            x=months_post_op,
+            line_dash="dash",
+            line_color="#e74c3c",
+            line_width=1.8,
+            annotation_text=(
+                f"▶ 当前评估<br>{months_post_op:.1f}个月" if zh else
+                f"▶ Now<br>{months_post_op:.1f}mo"
+            ),
+            annotation_position="top right",
+            annotation_font_color="#e74c3c",
+            annotation_font_size=11,
+        )
+
+    fig.update_layout(
+        xaxis=dict(
+            title="术后月数" if zh else "Months Post-op",
+            tickmode="array",
+            tickvals=time_points,
+            ticktext=x_labels,
+            showgrid=True,
+            gridcolor="#f0f0f0",
+        ),
+        yaxis=dict(
+            title="RTS概率 (%)" if zh else "RTS Probability (%)",
+            range=[0, 100],
+            showgrid=True,
+            gridcolor="#f0f0f0",
+        ),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        margin=dict(l=10, r=10, t=20, b=10),
+        height=320,
+        showlegend=False,
     )
-    st.line_chart(chart_data, use_container_width=True)
 
-    # 当前时间点标注
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 当前时间点文字标注
     if months_post_op is not None:
-        # 找最近的时间刻度
-        closest_t = min(curve.keys(), key=lambda x: abs(x - months_post_op))
+        closest_t = min(time_points, key=lambda x: abs(x - months_post_op))
         st.markdown(
             f'<div class="timepoint-badge">▶ 当前评估：术后 {months_post_op:.1f} 个月 '
             f'| 参考概率区间：{curve.get(closest_t, "—")}%</div>' if zh else

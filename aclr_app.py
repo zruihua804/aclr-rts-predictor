@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import date, datetime
 import gspread
 from google.oauth2.service_account import Credentials
+import plotly.graph_objects as go
 import warnings
 import uuid
 warnings.filterwarnings('ignore')
@@ -658,7 +659,6 @@ with tab1:
     curve = rts_curve_by_time(aclrsi_val, hop_lsi_val, quad_lsi_val, age_val)
 
     # 用plotly构建图表，确保横轴按数字顺序排列
-    import plotly.graph_objects as go
 
     time_points = list(curve.keys())   # [6, 9, 12, 18, 24, 36, 48]
     prob_values = list(curve.values())

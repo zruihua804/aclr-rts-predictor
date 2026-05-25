@@ -250,13 +250,13 @@ def generate_record_id():
     suffix = str(uuid.uuid4())[:4].upper()
     return f"ACLR-{today}-{suffix}"
 
-def get_months_post_op(surgery_date):
-    """从手术日期计算术后月数"""
-    if surgery_date is None:
+def get_months_post_op(surgery_date, eval_date):
+    """从手术日期和评估日期计算术后月数"""
+    if surgery_date is None or eval_date is None:
         return None
-    today = date.today()
-    delta = today - surgery_date
-    return round(delta.days / 30.44, 1)
+    delta = eval_date - surgery_date
+    months = (delta.days / 365.25) * 12
+    return round(months, 1)
 
 def time_stratum_label(months):
     """返回时间分层标签和临床提示"""
@@ -429,7 +429,7 @@ with tab1:
             help="填写后自动计算术后月数" if zh else "Auto-calculates months post-op"
         )
     with col_f:
-        months_post_op = get_months_post_op(surgery_date)
+        months_post_op = get_months_post_op(surgery_date, eval_date)
         if months_post_op is not None:
             st.metric(
                 "术后月数" if zh else "Months Post-op",

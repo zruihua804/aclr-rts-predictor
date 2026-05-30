@@ -238,8 +238,8 @@ HEADERS_OUTCOMES = [
     "再损伤(0/1)", "再损伤类型", "备注"
 ]
 
-@st.cache_resource(ttl=300)
 def get_workbook():
+    """每次调用都建立新连接，确保读取最新数据"""
     scopes = ["https://www.googleapis.com/auth/spreadsheets",
               "https://www.googleapis.com/auth/drive"]
     creds  = Credentials.from_service_account_info(
@@ -276,14 +276,22 @@ def lookup_patient_by_name(name):
     except Exception as e:
         return []
 
-def lookup_assessments_by_pid(pid):
-    """查找某患者所有评估记录"""
+def lookup_assessments_by_pid(pid, patient_name=""):
+    """查找某患者所有评估记录，PID精确匹配，兜底用姓名模糊匹配"""
     try:
         wb = get_workbook()
         wa = wb.worksheet(SHEET_ASSESSMENTS)
         all_rows = wa.get_all_records()
-        return [r for r in all_rows if r.get("患者ID(PID)","") == pid]
+        if not all_rows:
+            return []
+        # 主查询：PID精确匹配
+        results = [r for r in all_rows if str(r.get("患者ID(PID)","")).strip() == str(pid).strip()]
+        # 兜底：如果PID查不到，用姓名模糊匹配（兼容旧版无PID的数据）
+        if not results and patient_name:
+            results = [r for r in all_rows if patient_name.strip() in str(r.get("患者姓名", r.get("患者", "")))]
+        return results
     except Exception as e:
+        st.warning(f"评估记录查询出错：{e}")
         return []
 
 def save_patient(wp, row):
@@ -309,8 +317,8 @@ def save_outcome(wo, row):
 # ══════════════════════════════════════════════════════════════════════════════
 st.title("🦵 ACLR术后重返运动预测器" if zh else "🦵 ACLR Return to Sport Predictor")
 st.caption(
-    "基于文献多因素逻辑回归系数 | AUC≈0.80 | v3.0 · 张瑞华医生 设计" if zh else
-    "Literature-based multivariate logistic regression | AUC≈0.80 | v3.0 · Designed by Dr.Jason Zhang")
+    "基于文献多因素逻辑回归系数 | AUC≈0.80 | v3.0 · 优复门诊运动医学" if zh else
+    "Literature-based multivariate logistic regression | AUC≈0.80 | v3.0 · UP Clinic Sports Medicine")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Tab布局
@@ -844,7 +852,8 @@ with tab2:
         tegner_pre_fu = selected_p.get("Tegner术前", None)
 
         # 查找该患者的评估记录
-        assessments = lookup_assessments_by_pid(pid_selected)
+        patient_name_fu = selected_p.get("患者姓名", "")
+        assessments = lookup_assessments_by_pid(pid_selected, patient_name_fu)
         if assessments:
             rid_options = {
                 f"RID:{a['记录ID(RID)']} | 评估:{a.get('评估日期','-')} | 术后:{a.get('术后月数','-')}月 | 预测:{a.get('预测RTS概率(%)','-')}%": a

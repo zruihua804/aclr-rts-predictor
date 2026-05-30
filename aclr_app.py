@@ -317,8 +317,8 @@ def save_outcome(wo, row):
 # ══════════════════════════════════════════════════════════════════════════════
 st.title("🦵 ACLR术后重返运动预测器" if zh else "🦵 ACLR Return to Sport Predictor")
 st.caption(
-    "基于文献多因素逻辑回归系数 | AUC≈0.80 | v3.0 · 优复门诊运动医学" if zh else
-    "Literature-based multivariate logistic regression | AUC≈0.80 | v3.0 · UP Clinic Sports Medicine")
+    "基于文献多因素逻辑回归系数 | AUC≈0.80 | v3.0 · 张瑞华医生" if zh else
+    "Literature-based multivariate logistic regression | AUC≈0.80 | v3.0 · Dr. Jason Zhang")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Tab布局
@@ -682,10 +682,11 @@ with tab1:
             if err:
                 st.error(f"数据库连接失败：{err}")
             else:
-                # 检查患者主表是否已有该患者
+                # 检查患者主表是否已有该患者（PID必须非空才算有效）
                 existing = lookup_patient_by_name(patient_name)
-                if existing:
-                    pid = existing[0].get("患者ID(PID)", generate_pid())
+                existing_valid = [r for r in existing if str(r.get("患者ID(PID)","")).strip()]
+                if existing_valid:
+                    pid = existing_valid[0].get("患者ID(PID)")
                     st.info(f"{'找到已有患者记录，复用患者ID：' if zh else 'Existing patient found, reusing PID: '}{pid}")
                 else:
                     pid = generate_pid()
@@ -697,6 +698,18 @@ with tab1:
                     ok, e = save_patient(wp, p_row)
                     if not ok:
                         st.error(f"患者主表保存失败：{e}")
+                    else:
+                        # 如果该患者已有行但PID为空，回填PID
+                        if existing:
+                            try:
+                                wb2 = get_workbook()
+                                wp2 = wb2.worksheet(SHEET_PATIENTS)
+                                all_vals = wp2.get_all_values()
+                                for i, row in enumerate(all_vals[1:], start=2):
+                                    if len(row) > 1 and row[1] == patient_name and not str(row[0]).strip():
+                                        wp2.update_cell(i, 1, pid)
+                            except Exception:
+                                pass  # 回填失败不影响主流程
 
                 rid = generate_rid()
                 a_row = [rid, pid, str(eval_date), doctor_name, age_val,
@@ -851,32 +864,35 @@ with tab2:
         pid_selected = selected_p.get("患者ID(PID)","")
         tegner_pre_fu = selected_p.get("Tegner术前", None)
 
-        # 查找该患者的评估记录
+        # 查找该患者的评估记录（选填，没有评估记录也可录入随访结局）
         patient_name_fu = selected_p.get("患者姓名", "")
         assessments = lookup_assessments_by_pid(pid_selected, patient_name_fu)
+        rid_selected = ""
+        selected_r = {}
         if assessments:
-            rid_options = {
+            rid_options = {"（不关联评估记录）": {}} if True else {}
+            rid_options.update({
                 f"RID:{a['记录ID(RID)']} | 评估:{a.get('评估日期','-')} | 术后:{a.get('术后月数','-')}月 | 预测:{a.get('预测RTS概率(%)','-')}%": a
-                for a in assessments}
+                for a in assessments})
             selected_r_key = st.selectbox(
-                "选择关联的评估记录" if zh else "Select linked assessment record",
+                "关联评估记录（选填）" if zh else "Link to assessment record (optional)",
                 list(rid_options.keys()), key="fu_select_rid")
             selected_r = rid_options[selected_r_key]
             rid_selected = selected_r.get("记录ID(RID)","")
-
-            st.markdown(
-                f'<div class="info-box">'
-                f'{"关联评估" if zh else "Linked assessment"}: <b>{rid_selected}</b> | '
-                f'ACL-RSI: {selected_r.get("ACL-RSI","-")} | '
-                f'Hop LSI: {selected_r.get("Hop_LSI(%)","-")}% | '
-                f'{"预测概率" if zh else "Predicted"}: {selected_r.get("预测RTS概率(%)","-")}%'
-                f'</div>', unsafe_allow_html=True)
+            if rid_selected:
+                st.markdown(
+                    f'<div class="info-box">'
+                    f'{"关联评估" if zh else "Linked assessment"}: <b>{rid_selected}</b> | '
+                    f'ACL-RSI: {selected_r.get("ACL-RSI","-")} | '
+                    f'Hop LSI: {selected_r.get("Hop_LSI(%)","-")}% | '
+                    f'{"预测概率" if zh else "Predicted"}: {selected_r.get("预测RTS概率(%)","-")}%'
+                    f'</div>', unsafe_allow_html=True)
         else:
-            st.warning("该患者暂无评估记录" if zh else "No assessment records for this patient")
-            rid_selected = ""
+            st.caption("该患者暂无评估记录，将直接录入随访结局（RID留空）" if zh else
+                       "No assessment records found. Outcome will be recorded without RID link.")
 
-    # ── 结局录入表单 ──────────────────────────────────────────────────────────
-    if st.session_state.fu_patients and rid_selected:
+    # ── 结局录入表单（查到患者即显示，不强制要求有评估记录）──────────────────
+    if st.session_state.fu_patients and st.session_state.fu_patients:
         st.divider()
         st.markdown("#### 📝 录入随访结局" if zh else "#### 📝 Enter Outcome")
 
